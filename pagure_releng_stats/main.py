@@ -8,11 +8,12 @@ import datetime
 REPO_URL = "https://pagure.io/releng/issues"
 API_URL = "https://pagure.io/api/0/releng/issues"
 
+# Fetch issues with pagination
 def fetch_issues():
     issues = []
     page = 1
     while True:
-        response = requests.get(API_URL, params={"page": page, "per_page": 100})  # Fetch 100 issues per request
+        response = requests.get(API_URL, params={"page": page, "per_page": 100})
         if response.status_code == 200:
             data = response.json().get("issues", [])
             if not data:
@@ -35,6 +36,7 @@ print("Closed Issues:", len(closed_issues))  # Debugging statement
 
 # Weekly Opened vs Closed Issues
 week_ago = datetime.datetime.now() - datetime.timedelta(days=7)
+
 def filter_by_week(issue):
     print("Raw date_created:", issue["date_created"])  # Debugging statement
     try:
@@ -69,6 +71,33 @@ for issue in open_issues:
     if not issue.get("assignee", None):
         issue["assignee"] = "Samyak (releng user)"
 
+# Fetch Assigned Users and Their Issues
+def get_user_assignments(issues):
+    user_assignment = {}
+    for issue in issues:
+        assignee = issue.get("assignee", "Unassigned")  # Directly get assignee, avoiding `.get()`
+        if isinstance(assignee, dict):  # Check if assignee is a dictionary
+            assignee = assignee.get("name", "Unassigned")
+        
+        issue_link = f"https://pagure.io/releng/issue/{issue['id']}"
+        if assignee not in user_assignment:
+            user_assignment[assignee] = []
+        user_assignment[assignee].append({"id": issue["id"], "title": issue["title"], "link": issue_link})
+    
+    return user_assignment
+
+# Get user assignments for open issues
+user_issues = get_user_assignments(open_issues)
+
+# Print Assigned Users & Their Issues
+for user, issues in user_issues.items():
+    print(f"\nUser: {user} - Total Issues: {len(issues)}")
+    for issue in issues[:5]:  # Print only first 5 issues per user
+        print(f"  - [{issue['title']}]({issue['link']})")
+
+# Data for Visualization (Issues per User)
+user_counts = {user: len(issues) for user, issues in user_issues.items()}
+
 # Data Visualization
 # 1. Open vs Closed Issues
 plt.figure(figsize=(6,6))
@@ -97,3 +126,12 @@ df_points = pd.DataFrame(issue_points)
 print(df_points)  # Display the DataFrame in the console
 df_points.to_csv("issue_story_points.csv", index=False)  # Save as CSV file
 print("Issue Story Points saved to issue_story_points.csv")
+
+# 5. Bar Chart: Number of Issues Per User
+plt.figure(figsize=(8,6))
+plt.bar(user_counts.keys(), user_counts.values(), color="blue")
+plt.xticks(rotation=45, ha="right")
+plt.title("Issues Assigned per User")
+plt.ylabel("Number of Issues")
+plt.xlabel("Users")
+plt.show(block=True)  # Ensures the window stays open
